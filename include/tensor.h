@@ -3,6 +3,9 @@
 
 #define USE_RETURN [[nodiscard]]
 
+#include <iostream>
+#include <ostream>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include "vector.h"
@@ -71,6 +74,10 @@ public:
         if(_dimensions.size() == 1 && _data.size() == 1)
             return 0;
         return _dimensions.size();
+    }
+
+    void print_dimensionality() const {
+        std::cout << _dimensions.to_string() << std::endl;
     }
 
     USE_RETURN tensor_type& scalar_value() {

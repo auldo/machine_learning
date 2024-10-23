@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <string>
+#include "arithmetic.h"
 
 template <typename tensor_type> requires arithmetic<tensor_type>
 class vector {

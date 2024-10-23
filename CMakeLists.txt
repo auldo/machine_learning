@@ -5,4 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 include_directories(include)
 
-add_executable(linear_regression linear_regression.cpp)
+add_executable(linear_regression src/playground.cpp
+        src/read/tab_reparated.cpp
+        src/read/util.cpp)

@@ -5,4 +5,8 @@
 #include "vector.h"
 #include "tensor.h"
 
+//reader
+#include "read/util.h"
+#include "read/tab_separated.h"
+
 #endif //MACHINE_LEARNING_H
