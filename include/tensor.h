@@ -3,7 +3,6 @@
 
 #define USE_RETURN [[nodiscard]]
 
-#include <iostream>
 #include <ostream>
 #include <vector>
 #include <string>
@@ -97,6 +96,12 @@ public:
         _dimensions = std::move(dimensions);
         _data.reset_size(_dimensions.multiplied_sum());
     }
+    explicit tensor(const tensor_type& scalar): _dimensions({1}), _data({scalar}) {}
+    tensor& operator=(const tensor_type& scalar) {
+        this->_dimensions = {1};
+        this->_data = {scalar};
+        return *this;
+    }
 
     USE_RETURN size_t _transform_indices(vector<size_t>& indices) const {
         size_t index{0};
@@ -139,11 +144,25 @@ public:
     }
 
     USE_RETURN size_t rank() const {
+        if(_dimensions.size() == 1 && _data.size() == 1)
+            return 0;
         return _dimensions.size();
+    }
+
+    USE_RETURN tensor_type& scalar_value() {
+        if(rank() != 0)
+            throw std::invalid_argument("rank must be 0");
+        return this->operator[]({0});
     }
 
     USE_RETURN size_t max_index() const {
         return _dimensions.multiplied_sum() - 1;
+    }
+
+    void resize(vector<size_t> dimensions) {
+        if(_dimensions.multiplied_sum() != dimensions.multiplied_sum())
+            throw std::invalid_argument("can't resize tensor");
+        _dimensions = std::move(_dimensions);
     }
 };
 
