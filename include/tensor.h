@@ -1,41 +1,50 @@
 #ifndef TENSOR_H
 #define TENSOR_H
 
+#define USE_RETURN [[nodiscard]]
+
+#include <iostream>
+#include <ostream>
 #include <vector>
+#include <string>
 
 template <typename T>
 concept arithmetic = std::integral<T> or std::floating_point<T>;
 
 template <typename tensor_type> requires arithmetic<tensor_type>
-class array {
+class vector {
     using array_iterator = tensor_type*;
     using const_array_iterator = const tensor_type*;
     size_t _size;
     std::unique_ptr<tensor_type[]> _data{std::make_unique<tensor_type[]>(0)};
 public:
-    array() : _size(0) {}
-    array(std::initializer_list<tensor_type> init) : _size(init.size()), _data(std::make_unique<tensor_type[]>(init.size())) {
+    vector() : _size(0) {}
+    vector(std::initializer_list<tensor_type> init) : _size(init.size()), _data(std::make_unique<tensor_type[]>(init.size())) {
         for(auto i{0}; i < init.size(); ++i)
             _data[i] = *(init.begin() + i);
     }
-    explicit array(const size_t size) : _size(size), _data(std::make_unique<tensor_type[]>(size)) {}
+    explicit vector(const size_t size) : _size(size), _data(std::make_unique<tensor_type[]>(size)) {}
 
-    array(const array &other) = delete;
-    array &operator=(array &&other)  noexcept {
+    vector &operator=(vector &&other)  noexcept {
         this->reset_size(other._size);
         this->_data = std::move(other._data);
         other.reset_size(0);
         return *this;
     }
 
-    array(array &&other) = delete;
-    array &operator=(const array &other) = delete;
+    /**
+    * required for using vectors as return types of functions
+    */
+    vector(vector &&other) noexcept: _size(other._size), _data(std::move(other._data)) {}
 
-    array_iterator begin() { return _data.get(); }
-    array_iterator end() { return _data.get() + _size; }
+    vector(const vector &other) = delete;
+    vector &operator=(const vector &other) = delete;
 
-    [[nodiscard]] const_array_iterator begin() const { return _data.get(); }
-    [[nodiscard]] const_array_iterator end() const { return _data.get() + _size; }
+    USE_RETURN array_iterator begin() { return _data.get(); }
+    USE_RETURN array_iterator end() { return _data.get() + _size; }
+
+    USE_RETURN const_array_iterator begin() const { return _data.get(); }
+    USE_RETURN const_array_iterator end() const { return _data.get() + _size; }
 
     void reset_size(size_t size) {
         this->_size = size;
@@ -48,33 +57,48 @@ public:
         return this->_data[idx];
     }
 
-    [[nodiscard]] tensor_type multipliedSum() const {
+    const tensor_type& operator[](size_t idx) const {
+        if(idx >= this->_size)
+            throw std::out_of_range("index out of range");
+        return this->_data[idx];
+    }
+
+    USE_RETURN tensor_type multiplied_sum() const {
         tensor_type sum{this->_size == 0 ? static_cast<tensor_type>(0) : static_cast<tensor_type>(1)};
         for(auto& elem : *this)
             sum *= elem;
         return sum;
     }
 
-    [[nodiscard]] size_t size() const { return _size; }
+    USE_RETURN tensor_type multiplied_sum_last_n(const size_t n) const {
+        tensor_type sum{this->_size == 0 ? static_cast<tensor_type>(0) : static_cast<tensor_type>(1)};
+        for(auto i{0}; i < n; ++i) {
+            sum *= this->operator[](this->_size - 1 - i);
+        }
+        return sum;
+    }
+
+    USE_RETURN size_t size() const { return _size; }
+    USE_RETURN std::string to_string() const {
+        std::string result;
+        for(const auto& elem : *this) {
+            result += std::to_string(elem);
+        }
+        return result;
+    }
 };
 
 template <typename tensor_type> requires arithmetic<tensor_type>
 class tensor {
-    array<tensor_type> _data{0};
-    array<size_t> _dimensions{0};
+    vector<tensor_type> _data{0};
+    vector<size_t> _dimensions{0};
 public:
-    explicit tensor(array<size_t> dimensions) {
+    explicit tensor(vector<size_t> dimensions) {
         _dimensions = std::move(dimensions);
-        _data.reset_size(_dimensions.multipliedSum());
+        _data.reset_size(_dimensions.multiplied_sum());
     }
 
-    /**
-    * Idx = len(Dim2) * Dim1 + Dim2
-    * Idx = Dim1 * len(Dim2) * len(Dim3) + Dim2 * len(Dim3) + Dim3
-    * len(Dimx) stored in _dimensions
-    * Dimx stored in indices
-    */
-    size_t _transformIndices(array<size_t>& indices) {
+    USE_RETURN size_t _transform_indices(vector<size_t>& indices) const {
         size_t index{0};
         for(auto i{0}; i < indices.size(); ++i) {
             auto idx{indices.size() - i - 1};
@@ -87,15 +111,39 @@ public:
         return index;
     }
 
-    tensor_type& operator[](array<size_t> indices) {
+    USE_RETURN vector<size_t> _transform_index(size_t index) const {
+        if(index > max_index())
+            throw std::out_of_range("index out of range");
+        vector<size_t> result(_dimensions.size());
+        size_t last_n{_dimensions.size() - 1}; //3
+        while(last_n > 0) {
+            size_t prod{_dimensions.multiplied_sum_last_n(last_n)};
+            size_t divisor{index / prod};
+            index = index - prod * divisor;
+            result[_dimensions.size() - 1 - last_n] = divisor;
+            --last_n;
+        }
+        result[_dimensions.size() - 1] = index % _dimensions[_dimensions.size() - 1];
+        return result;
+    }
+
+    tensor_type& operator[](vector<size_t> indices) {
         if(indices.size() != _dimensions.size())
             throw std::invalid_argument("expected "  + std::to_string(_dimensions.size()) + " indices.");
         for(auto i{0}; i < _dimensions.size(); ++i) {
             if(indices[i] >= _dimensions[i])
                 throw std::out_of_range("index out of range");
         }
-        auto index{_transformIndices(indices)};
+        auto index{_transform_indices(indices)};
         return _data[index];
+    }
+
+    USE_RETURN size_t rank() const {
+        return _dimensions.size();
+    }
+
+    USE_RETURN size_t max_index() const {
+        return _dimensions.multiplied_sum() - 1;
     }
 };
 
